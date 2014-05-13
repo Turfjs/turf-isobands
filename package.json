@@ -1,0 +1,31 @@
+{
+  "name": "turf-isobands",
+  "version": "0.0.1",
+  "description": "turf isobands module",
+  "main": "index.js",
+  "scripts": {
+    "test": "tape test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/morganherlocker/turf-isobands.git"
+  },
+  "keywords": [
+    "turf",
+    "geojson",
+    "contours",
+    "isobands",
+    "elevation",
+    "topography",
+    "filled"
+  ],
+  "author": "morganherlocker",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/morganherlocker/turf-isobands/issues"
+  },
+  "homepage": "https://github.com/morganherlocker/turf-isobands",
+  "devDependencies": {
+    "tape": "^2.12.3"
+  }
+}
