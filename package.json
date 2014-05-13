@@ -36,6 +36,7 @@
     "turf-lineString": "^0.1.0",
     "turf-planepoint": "0.0.1",
     "turf-point": "^0.1.0",
+    "turf-polygon": "^0.1.0",
     "turf-size": "^0.1.1",
     "turf-square": "^0.1.1",
     "turf-tin": "0.0.1"
