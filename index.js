@@ -12,7 +12,7 @@ var point = require('turf-point')
 var square = require('turf-square')
 var size = require('turf-size')
 
-module.exports = function(points, z, resolution, breaks, donuts, done){
+module.exports = function(points, z, resolution, breaks){
   var addEdgesResult = addEdges(points, z, resolution);
 
   if (typeof addEdgesResult === 'Error') {
@@ -91,33 +91,7 @@ module.exports = function(points, z, resolution, breaks, donuts, done){
     }
   })
 
-  // perform donuts function and dissolves rings before returning if donuts option is true
-  if(donuts){
-    var donutPolys = donuts(fc);
-    var zGroups = []
-    donutPolys.features.forEach(function(ring){
-      var found = false
-      zGroups.forEach(function(group){
-        if(group.z === ring.properties[z]){
-          found = true
-          group.rings.push(ring)
-        }
-      })
-      if(!found){
-        zGroups.push({z: ring.properties[z], rings: [ring]})
-      }
-    })
-    donutPolys.features = []
-    zGroups.forEach(function(group){
-      group.rings.forEach(function(ring){
-      })
-      donutPolys.features.push(merge(featurecollection(group.rings)))
-    })
-    return donutPolys;
-  }
-  else {
-    return fc;
-  }
+  return fc;
 }
 
 function addEdges(points, z, resolution){
