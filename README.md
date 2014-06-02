@@ -13,7 +13,7 @@ var resolution = 15
 var breaks = [.1, 22, 45, 55, 65, 85,  95, 105, 120, 180]
 var points = JSON.parse(fs.readFileSync('/path/to/points.geojson'))
 
-isobands(points, z, resolution, breaks)
+var isobanded = isobands(points, z, resolution, breaks)
 
-console.log(isolines)
+console.log(isobanded)
 ```
