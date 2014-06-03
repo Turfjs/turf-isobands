@@ -33,7 +33,7 @@
     "turf-featurecollection": "^0.1.0",
     "turf-grid": "0.0.1",
     "turf-inside": "^0.1.1",
-    "turf-lineString": "^0.1.0",
+    "turf-linestring": "^0.1.0",
     "turf-planepoint": "0.0.1",
     "turf-point": "^0.1.0",
     "turf-polygon": "^0.1.0",
