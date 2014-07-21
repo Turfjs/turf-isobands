@@ -4,6 +4,30 @@ turf-isobands
 
 Takes a FeatureCollection of points with z values and an array of value breaks and generates filled contour isobands. These are commonly used to create elevation maps, but can be used for general data interpolation as well.
 
+###Install
+
+```sh
+npm install turf-isobands
+```
+
+###Parameters
+
+|name|description|
+|---|---|
+|points|points use as seed values|
+|z|z value to contour|
+|resolution|resolution of the underlying grid|
+|breaks|where to draw contours|
+
+###Usage
+
+```js
+isobands(points, z, resolution, breaks)
+```
+
+###Example
+
+
 ```js
 var isobands = require('turf-isobands')
 var fs = require('fs')
