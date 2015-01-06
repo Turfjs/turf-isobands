@@ -23,7 +23,8 @@ var Conrec = require('./conrec.js');
  * @param {GeoJSONFeatureCollection} points
  * @param {string} z - a property name from which z values will be pulled
  * @param {number} resolution - resolution of the underlying grid
- * @return {Array<number>} breaks - where to draw contours
+ * @param {Array<number>} breaks - where to draw contours
+ * @return {GeoJSONFeatureCollection}
  * @example
  * var fs = require('fs')
  * var z = 'elevation'
