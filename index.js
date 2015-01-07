@@ -14,17 +14,17 @@ var size = require('turf-size');
 var Conrec = require('./conrec.js');
 
 /**
- * Takes a FeatureCollection of points with z values and an array of
+ * Takes a {@link FeatureCollection} of points with z values and an array of
  * value breaks and generates filled contour isobands. These are commonly
  * used to create elevation maps, but can be used for general data
  * interpolation as well.
  *
  * @module turf/isobands
- * @param {GeoJSONFeatureCollection} points
+ * @param {FeatureCollection} points
  * @param {string} z - a property name from which z values will be pulled
  * @param {number} resolution - resolution of the underlying grid
  * @param {Array<number>} breaks - where to draw contours
- * @return {GeoJSONFeatureCollection}
+ * @returns {FeatureCollection} isolines
  * @example
  * var fs = require('fs')
  * var z = 'elevation'
