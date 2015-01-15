@@ -26,13 +26,17 @@ var Conrec = require('./conrec.js');
  * @param {Array<number>} breaks - where to draw contours
  * @returns {FeatureCollection} isolines
  * @example
- * var fs = require('fs')
- * var z = 'elevation'
- * var resolution = 15
- * var breaks = [.1, 22, 45, 55, 65, 85,  95, 105, 120, 180]
- * var points = JSON.parse(fs.readFileSync('/path/to/points.geojson'))
- * var isobanded = turf.isobands(points, z, resolution, breaks)
- * console.log(isobanded)
+ * // create random points with random
+ * // z-values in their properties
+ * var points = turf.random('point', 100, {
+ *   bbox: [0, 30, 20, 50]
+ * });
+ * for (var i = 0; i < points.features.length; i++) {
+ *   points.features[i].properties.z = Math.random() * 10;
+ * }
+ * var breaks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+ * var isolined = turf.isobands(points, 'z', 15, breaks);
+ * //=isolined
  */
 module.exports = function(points, z, resolution, breaks){
   var addEdgesResult = addEdges(points, z, resolution);
@@ -66,7 +70,7 @@ module.exports = function(points, z, resolution, breaks){
       } else{
         xFlat.push(0);
       }
-    })
+    });
     data.push(xFlat);
   }
   var interval = (squareBBox[2] - squareBBox[0]) / depth;
@@ -78,18 +82,18 @@ module.exports = function(points, z, resolution, breaks){
   }
 
   //change zero breaks to .01 to deal with bug in conrec algorithm
-  breaks = breaks.map(function(num){
+  breaks = breaks.map(function(num) {
     if(num === 0){
-      return .01;
+      return 0.01;
     }
     else{
       return num;
     }
-  })
+  });
   //deduplicate breaks
   breaks = unique(breaks);
 
-  var c = new Conrec;
+  var c = new Conrec();
   c.contour(data, 0, resolution, 0, resolution, xCoordinates, yCoordinates, breaks.length, breaks);
   var contourList = c.contourList();
 
@@ -100,83 +104,71 @@ module.exports = function(points, z, resolution, breaks){
       c.forEach(function(coord){
         polyCoordinates.push([coord.x, coord.y]);
       });
+      polyCoordinates.push([c[0].x, c[0].y]);
       var poly = polygon([polyCoordinates]);
       poly.properties = {};
       poly.properties[z] = c.level;
-
       fc.features.push(poly);
     }
   });
 
   return fc;
-}
+};
 
 function addEdges(points, z, resolution){
   var extentBBox = extent(points),
-    squareBBox,
     sizeResult;
 
-  if (typeof extentBBox === 'Error') {
-    return extentBBox;
-  }
+  var squareBBox = square(extentBBox);
+  var sizeBBox = size(squareBBox, 0.35);
 
-  squareBBox = square(extentBBox);
+  var edgeDistance = sizeBBox[2] - sizeBBox[0];
+  var extendDistance = edgeDistance / resolution;
 
-  if (typeof squareBBox === 'Error') {
-    return squareBBox;
-  }
-
-  sizeBBox = size(squareBBox, 0.35)
-
-  if (typeof sizeBBox === 'Error') {
-    return sizeBBox;
-  }
-
-  var edgeDistance = sizeBBox[2] - sizeBBox[0]
-  var extendDistance = edgeDistance / resolution
-
-  var xmin = sizeBBox[0]
-  var ymin = sizeBBox[1]
-  var xmax = sizeBBox[2]
-  var ymax = sizeBBox[3]
+  var xmin = sizeBBox[0];
+  var ymin = sizeBBox[1];
+  var xmax = sizeBBox[2];
+  var ymax = sizeBBox[3];
 
   //left
-  var left = [[xmin, ymin],[xmin, ymax]]
+  var left = [[xmin, ymin],[xmin, ymax]];
   for(var i = 0; i<=resolution; i++){
-    var pt = point(xmin, ymin + (extendDistance * i))
-    pt.properties = {}
-    pt.properties[z] = -100
-    points.features.push(pt)
+    var pt = point(xmin, ymin + (extendDistance * i));
+    pt.properties = {};
+    pt.properties[z] = -100;
+    points.features.push(pt);
   }
 
+  var i, pt;
+
   //bottom
-  var bottom = [[xmin, ymin],[xmax, ymin]]
-  for(var i = 0; i<=resolution; i++){
-    var pt = point(xmin + (extendDistance * i), ymin)
-    pt.properties = {}
-    pt.properties[z] = -100
-    points.features.push(pt)
+  var bottom = [[xmin, ymin],[xmax, ymin]];
+  for(i = 0; i<=resolution; i++){
+    pt = point(xmin + (extendDistance * i), ymin);
+    pt.properties = {};
+    pt.properties[z] = -100;
+    points.features.push(pt);
   }
 
   //right
-  var right = [[xmax, ymin],[xmax, ymax]]
-  for(var i = 0; i<=resolution; i++){
-    var pt = point(xmax, ymin + (extendDistance * i))
-    pt.properties = {}
-    pt.properties[z] = -100
-    points.features.push(pt)
+  var right = [[xmax, ymin],[xmax, ymax]];
+  for(i = 0; i<=resolution; i++){
+    pt = point(xmax, ymin + (extendDistance * i));
+    pt.properties = {};
+    pt.properties[z] = -100;
+    points.features.push(pt);
   }
 
   //top
-  var top = [[xmin, ymax],[xmax, ymax]]
-  for(var i = 0; i<=resolution; i++){
-    var pt = point(xmin + (extendDistance * i), ymax)
-    pt.properties = {}
-    pt.properties[z] = -100
-    points.features.push(pt)
+  var top = [[xmin, ymax],[xmax, ymax]];
+  for(i = 0; i<=resolution; i++){
+    pt = point(xmin + (extendDistance * i), ymax);
+    pt.properties = {};
+    pt.properties[z] = -100;
+    points.features.push(pt);
   }
 
-  return points
+  return points;
 }
 
 function unique(a) {
