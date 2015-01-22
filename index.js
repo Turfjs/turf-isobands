@@ -133,7 +133,7 @@ function addEdges(points, z, resolution){
   //left
   var left = [[xmin, ymin],[xmin, ymax]];
   for(var i = 0; i<=resolution; i++){
-    var pt = point(xmin, ymin + (extendDistance * i));
+    var pt = point([xmin, ymin + (extendDistance * i)]);
     pt.properties = {};
     pt.properties[z] = -100;
     points.features.push(pt);
@@ -144,7 +144,7 @@ function addEdges(points, z, resolution){
   //bottom
   var bottom = [[xmin, ymin],[xmax, ymin]];
   for(i = 0; i<=resolution; i++){
-    pt = point(xmin + (extendDistance * i), ymin);
+    pt = point([xmin + (extendDistance * i), ymin]);
     pt.properties = {};
     pt.properties[z] = -100;
     points.features.push(pt);
@@ -153,7 +153,7 @@ function addEdges(points, z, resolution){
   //right
   var right = [[xmax, ymin],[xmax, ymax]];
   for(i = 0; i<=resolution; i++){
-    pt = point(xmax, ymin + (extendDistance * i));
+    pt = point([xmax, ymin + (extendDistance * i)]);
     pt.properties = {};
     pt.properties[z] = -100;
     points.features.push(pt);
@@ -162,7 +162,7 @@ function addEdges(points, z, resolution){
   //top
   var top = [[xmin, ymax],[xmax, ymax]];
   for(i = 0; i<=resolution; i++){
-    pt = point(xmin + (extendDistance * i), ymax);
+    pt = point([xmin + (extendDistance * i), ymax]);
     pt.properties = {};
     pt.properties[z] = -100;
     points.features.push(pt);
