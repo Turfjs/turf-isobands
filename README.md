@@ -1,43 +1,58 @@
-turf-isobands
-=============
-[![Build Status](https://travis-ci.org/Turfjs/turf-isobands.svg?branch=master)](https://travis-ci.org/Turfjs/turf-isobands)
+# turf-isobands
 
-Takes a FeatureCollection of points with z values and an array of value breaks and generates filled contour isobands. These are commonly used to create elevation maps, but can be used for general data interpolation as well.
+[![build status](https://secure.travis-ci.org/Turfjs/turf-isobands.png)](http://travis-ci.org/Turfjs/turf-isobands)
 
-###Install
+turf isobands module
+
+
+### `turf.isobands(points, z, resolution, breaks)`
+
+Takes a FeatureCollection of points with z values and an array of
+value breaks and generates filled contour isobands. These are commonly
+used to create elevation maps, but can be used for general data
+interpolation as well.
+
+
+### Parameters
+
+| parameter    | type              | description                                          |
+| ------------ | ----------------- | ---------------------------------------------------- |
+| `points`     | FeatureCollection |                                                      |
+| `z`          | string            | - a property name from which z values will be pulled |
+| `resolution` | number            | - resolution of the underlying grid                  |
+| `breaks`     | Array.<number>    | - where to draw contours                             |
+
+
+### Example
+
+```js
+// create random points with random
+// z-values in their properties
+var points = turf.random('point', 100, {
+  bbox: [0, 30, 20, 50]
+});
+for (var i = 0; i < points.features.length; i++) {
+  points.features[i].properties.z = Math.random() * 10;
+}
+var breaks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+var isolined = turf.isobands(points, 'z', 15, breaks);
+//=isolined
+```
+
+
+**Returns** `FeatureCollection`, isolines
+
+## Installation
+
+Requires [nodejs](http://nodejs.org/).
 
 ```sh
-npm install turf-isobands
+$ npm install turf-isobands
 ```
 
-###Parameters
+## Tests
 
-|name|description|
-|---|---|
-|points|points use as seed values|
-|z|z value to contour|
-|resolution|resolution of the underlying grid|
-|breaks|where to draw contours|
-
-###Usage
-
-```js
-isobands(points, z, resolution, breaks)
+```sh
+$ npm test
 ```
 
-###Example
-
-
-```js
-var isobands = require('turf-isobands')
-var fs = require('fs')
-
-var z = 'elevation'
-var resolution = 15
-var breaks = [.1, 22, 45, 55, 65, 85,  95, 105, 120, 180]
-var points = JSON.parse(fs.readFileSync('/path/to/points.geojson'))
-
-var isobanded = isobands(points, z, resolution, breaks)
-
-console.log(isobanded)
-```
