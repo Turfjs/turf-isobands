@@ -19,7 +19,7 @@ var Conrec = require('./conrec.js');
  *
  * @module turf/isobands
  * @param {FeatureCollection} points a FeeatureCollection of {@link Point} features
- * @param {string} z the property name in `point` from which z-values will be pulled
+ * @param {string} z the property name in `points` from which z-values will be pulled
  * @param {number} resolution resolution of the underlying grid
  * @param {Array<number>} breaks where to draw contours
  * @returns {FeatureCollection} a FeatureCollection of {@link Polygon} features representing isobands
