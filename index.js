@@ -14,17 +14,15 @@ var size = require('turf-size');
 var Conrec = require('./conrec.js');
 
 /**
- * Takes a {@link FeatureCollection} of points with z values and an array of
- * value breaks and generates filled contour isobands. These are commonly
- * used to create elevation maps, but can be used for general data
- * interpolation as well.
+ * Takes a {@link FeatureCollection} of {@link Point} features with z-values and an array of
+ * value breaks and generates filled contour isobands.
  *
  * @module turf/isobands
- * @param {FeatureCollection} points
- * @param {string} z - a property name from which z values will be pulled
- * @param {number} resolution - resolution of the underlying grid
- * @param {Array<number>} breaks - where to draw contours
- * @returns {FeatureCollection} isolines
+ * @param {FeatureCollection} points a FeeatureCollection of {@link Point} features
+ * @param {string} z the property name in `point` from which z-values will be pulled
+ * @param {number} resolution resolution of the underlying grid
+ * @param {Array<number>} breaks where to draw contours
+ * @returns {FeatureCollection} a FeatureCollection of {@link Polygon} features representing isobands
  * @example
  * // create random points with random
  * // z-values in their properties
