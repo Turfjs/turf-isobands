@@ -18,6 +18,7 @@ var Conrec = require('./conrec.js');
  * value breaks and generates filled contour isobands.
  *
  * @module turf/isobands
+ * @category interpolation
  * @param {FeatureCollection} points a FeeatureCollection of {@link Point} features
  * @param {string} z the property name in `points` from which z-values will be pulled
  * @param {number} resolution resolution of the underlying grid
