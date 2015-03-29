@@ -6,7 +6,6 @@ var grid = require('turf-grid');
 var extent = require('turf-extent');
 var planepoint = require('turf-planepoint');
 var featurecollection = require('turf-featurecollection');
-var linestring = require('turf-linestring');
 var polygon = require('turf-polygon');
 var point = require('turf-point');
 var square = require('turf-square');
@@ -37,7 +36,7 @@ var Conrec = require('./conrec.js');
  * var isolined = turf.isobands(points, 'z', 15, breaks);
  * //=isolined
  */
-module.exports = function(points, z, resolution, breaks){
+module.exports = function(points, z, resolution, breaks) {
   var addEdgesResult = addEdges(points, z, resolution);
 
   var tinResult = tin(points, z);
@@ -46,27 +45,27 @@ module.exports = function(points, z, resolution, breaks){
   var gridResult = grid(squareBBox, resolution);
   var data = [];
 
-  gridResult.features.forEach(function(pt){
-    tinResult.features.forEach(function(triangle){
+  gridResult.features.forEach(function(pt) {
+    tinResult.features.forEach(function(triangle) {
       if (inside(pt, triangle)) {
         pt.properties = {};
         pt.properties[z] = planepoint(pt, triangle);
       }
     });
-    if(!pt.properties){
+    if(!pt.properties) {
       pt.properties = {};
       pt.properties[z] = -100;
     }
   });
 
   var depth = Math.sqrt(gridResult.features.length);
-  for (var x=0; x<depth; x++){
+  for (var x=0; x<depth; x++) {
     var xGroup = gridResult.features.slice(x * depth, (x + 1) * depth);
     var xFlat = [];
-    xGroup.forEach(function(verticalPoint){
-      if(verticalPoint.properties){
+    xGroup.forEach(function(verticalPoint) {
+      if(verticalPoint.properties) {
         xFlat.push(verticalPoint.properties[z]);
-      } else{
+      } else {
         xFlat.push(0);
       }
     });
@@ -75,17 +74,16 @@ module.exports = function(points, z, resolution, breaks){
   var interval = (squareBBox[2] - squareBBox[0]) / depth;
   var xCoordinates = [];
   var yCoordinates = [];
-  for (var x=0; x<depth; x++){
+  for (var x=0; x<depth; x++) {
     xCoordinates.push(x * interval + squareBBox[0]);
     yCoordinates.push(x * interval + squareBBox[1]);
   }
 
   //change zero breaks to .01 to deal with bug in conrec algorithm
   breaks = breaks.map(function(num) {
-    if(num === 0){
+    if(num === 0) {
       return 0.01;
-    }
-    else{
+    } else {
       return num;
     }
   });
@@ -97,10 +95,10 @@ module.exports = function(points, z, resolution, breaks){
   var contourList = c.contourList();
 
   var fc = featurecollection([]);
-  contourList.forEach(function(c){
-    if(c.length > 2){
+  contourList.forEach(function(c) {
+    if(c.length > 2) {
       var polyCoordinates = [];
-      c.forEach(function(coord){
+      c.forEach(function(coord) {
         polyCoordinates.push([coord.x, coord.y]);
       });
       polyCoordinates.push([c[0].x, c[0].y]);
@@ -114,7 +112,7 @@ module.exports = function(points, z, resolution, breaks){
   return fc;
 };
 
-function addEdges(points, z, resolution){
+function addEdges(points, z, resolution) {
   var extentBBox = extent(points),
     sizeResult;
 
@@ -131,7 +129,7 @@ function addEdges(points, z, resolution){
 
   //left
   var left = [[xmin, ymin],[xmin, ymax]];
-  for(var i = 0; i<=resolution; i++){
+  for(var i = 0; i<=resolution; i++) {
     var pt = point([xmin, ymin + (extendDistance * i)]);
     pt.properties = {};
     pt.properties[z] = -100;
@@ -142,7 +140,7 @@ function addEdges(points, z, resolution){
 
   //bottom
   var bottom = [[xmin, ymin],[xmax, ymin]];
-  for(i = 0; i<=resolution; i++){
+  for(i = 0; i<=resolution; i++) {
     pt = point([xmin + (extendDistance * i), ymin]);
     pt.properties = {};
     pt.properties[z] = -100;
@@ -151,7 +149,7 @@ function addEdges(points, z, resolution){
 
   //right
   var right = [[xmax, ymin],[xmax, ymax]];
-  for(i = 0; i<=resolution; i++){
+  for(i = 0; i<=resolution; i++) {
     pt = point([xmax, ymin + (extendDistance * i)]);
     pt.properties = {};
     pt.properties[z] = -100;
@@ -160,7 +158,7 @@ function addEdges(points, z, resolution){
 
   //top
   var top = [[xmin, ymax],[xmax, ymax]];
-  for(i = 0; i<=resolution; i++){
+  for(i = 0; i<=resolution; i++) {
     pt = point([xmin + (extendDistance * i), ymax]);
     pt.properties = {};
     pt.properties[z] = -100;
