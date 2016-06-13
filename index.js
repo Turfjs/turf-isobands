@@ -106,7 +106,7 @@ module.exports = function (pointGrid, z, breaks) {
     var originalWidth = getLongitude(pointsByLatitude[0][lastC]) - getLongitude(pointsByLatitude[0][0]);
     var lastR = pointsByLatitude.length - 1; //last row of the data grid
     //get the distance (on the map) between the first and the last point on a column of the grid
-    var originalHeigth = getLatitude(pointsByLatitude[lastR][0]) -getLatitude(pointsByLatitude[0][0]);
+    var originalHeigth = getLatitude(pointsByLatitude[lastR][0]) - getLatitude(pointsByLatitude[0][0]);
     //console.log('originalWidth:', originalWidth, 'originalHeigth:', originalHeigth);
 
     //get origin, which is the first point of the last row on the rectangular data on the map
@@ -132,7 +132,7 @@ module.exports = function (pointGrid, z, breaks) {
         var upperBand = +breaks[i];
         var band = MarchingSquaresJS.IsoBands(gridData, lowerBand, upperBand - lowerBand);
         //console.log('band', band);
-        var poly = {"coords": band };
+        var poly = {"coords": band, "z": +breaks[i] };
         poly.z = +breaks[i]; //ake sure it's a number
         isoBands.push(poly);
         //debugger;
@@ -158,7 +158,7 @@ module.exports = function (pointGrid, z, breaks) {
     // creates GEOJson polygons from the lineRings
     var polygons = isoBands.map(function (isoBand) {
       var opt = {};
-      opt[z] = isoBand.val;
+      opt[z] = isoBand.z;
       return turfPolygon(isoBand.coords, opt);
     });
 
