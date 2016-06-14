@@ -6,6 +6,8 @@ var MarchingSquaresJS = require('./marchingsquares-isobands');
 
 var turfFeaturecollection = require('turf-featurecollection');
 var turfPolygon = require('turf-polygon');
+var turfArea = require('turf-area');
+
 
 /*******************************************************************
  * Takes a grid ({@link FeatureCollection}) of {@link Point} features with z-values and an array of
@@ -33,27 +35,18 @@ var turfPolygon = require('turf-polygon');
  ******************************************************************/
 module.exports = function (pointGrid, z, breaks) {
 
-
-    var Points = pointGrid.features;
-    //console.log(Points[0].geometry);
-    var getLatitude = function (point) {
-        return point.geometry.coordinates[1];
-    };
-    var getLongitude = function (point) {
-        return point.geometry.coordinates[0];
-    };
-
+    var points = pointGrid.features;
 
     /*####################################
-     divide pointGrid by Latitude, creating a 2-dimensional data grid
+     divide points in pointGrid by latitude, creating a 2-dimensional data grid
      ####################################*/
     var pointsByLatitude = {};
-    for (var j = 0; j < Points.length; j++) {
-        if (!pointsByLatitude[getLatitude(Points[j])]) {
-            pointsByLatitude[getLatitude(Points[j])] = [];
+    for (var j = 0; j < points.length; j++) {
+        if (!pointsByLatitude[getLatitude(points[j])]) {
+            pointsByLatitude[getLatitude(points[j])] = [];
         }
         //group obj by Lat value
-        pointsByLatitude[getLatitude(Points[j])].push(Points[j]);
+        pointsByLatitude[getLatitude(points[j])].push(points[j]);
     }
     //create an array of arrays of points, each array representing a row (i.e. Latitude) of the 2D grid
     pointsByLatitude = Object.keys(pointsByLatitude).map(function (key) {
@@ -83,7 +76,6 @@ module.exports = function (pointGrid, z, breaks) {
         gridData.push(row);
     });
 
-    //console.log('gridData: ', JSON.stringify(gridData));
     /* example
      *   gridData = [
      *       [ 1, 13, 10,  9, 10, 13, 18],
@@ -107,16 +99,15 @@ module.exports = function (pointGrid, z, breaks) {
     var lastR = pointsByLatitude.length - 1; //last row of the data grid
     //get the distance (on the map) between the first and the last point on a column of the grid
     var originalHeigth = getLatitude(pointsByLatitude[lastR][0]) - getLatitude(pointsByLatitude[0][0]);
-    //console.log('originalWidth:', originalWidth, 'originalHeigth:', originalHeigth);
 
     //get origin, which is the first point of the last row on the rectangular data on the map
     var x0 = getLongitude(pointsByLatitude[0][0]);
     var y0 = getLatitude(pointsByLatitude[0][0]);
-    //console.log('x0:', x0, 'y0:', y0);
-
+    //get pointGrid dimensions
     var gridWidth = gridData[0].length;
     var gridHeigth = gridData.length;
-    //console.log('gridWidth:', gridWidth, 'gridHeigth:', gridHeigth);
+
+
 
     /*####################################
      creates the contours lines (featuresCollection of polygon features) from the 2D data grid
@@ -131,41 +122,75 @@ module.exports = function (pointGrid, z, breaks) {
         var lowerBand = +breaks[i - 1]; //make sure the breaks value is a number
         var upperBand = +breaks[i];
         var band = MarchingSquaresJS.IsoBands(gridData, lowerBand, upperBand - lowerBand);
-        //console.log('band', band);
-        var poly = {"coords": band, "z": +breaks[i] };
-        poly.z = +breaks[i]; //ake sure it's a number
-        isoBands.push(poly);
-        //debugger;
+        isoBands.push({
+            "lineRings": band,
+            [z]: +breaks[i] //make sure it's a number
+        });
     }
-    //console.log('isoBands:', isoBands);
-
     //calculate the scaling factor between the unitary grid to the rectangle on the map
     var scaleX = originalWidth / gridWidth;
     var scaleY = originalHeigth / gridHeigth;
-    //console.log('scaleX:', scaleX, 'scaleY', scaleY);
 
+    
+    /*####################################
+     transform isobands of 2D grid to polygons for the map
+     ####################################*/
     //rescale and shift each point/line of the isobands
     isoBands.forEach(function (bandObj) {
-        bandObj.coords.forEach(function (line) {
+        bandObj.lineRings.forEach(function (line) {
             line.forEach(function (point) {
                 point[0] = point[0] * scaleX + x0; //rescaled x
                 point[1] = point[1] * scaleY + y0; //rescaled y
             });
         });
     });
-    //console.log('isoBands:', isoBands);
 
     // creates GEOJson polygons from the lineRings
     var polygons = isoBands.map(function (isoBand) {
-      var opt = {};
-      opt[z] = isoBand.z;
-      return turfPolygon(isoBand.coords, opt);
+        // as per GeoJson rules for creating a polygon, make sure the first element in the array of lineRings
+        // represents the exterior ring (i.e. biggest area), and any subsequent elements represent interior rings
+        // (i.e. smaller area)
+        isoBand.lineRings = orderByArea(isoBand.lineRings);
+        return turfPolygon(isoBand.lineRings, {[z]: isoBand[z]});
     });
-
-    //console.log('polygon:', JSON.stringify(polygons));
-    //console.log(turfFeaturecollection(polygons).features[2]);
 
     //return a GEOJson featurecollection of polygons
     return turfFeaturecollection(polygons);
 
 };
+
+function orderByArea(lineRings) {
+    var lineRingsWithArea = [];
+    var areas = [];
+    lineRings.forEach(function (points) {
+        var poly = turfPolygon([points]);
+        var area = turfArea(poly);
+        //create an array of areas value
+        areas.push(area);
+        //associate each lineRing with its area
+        lineRingsWithArea.push({lineRing: points, area: area});
+    });
+    areas.sort(function (a, b) { //bigger --> smaller
+        return b - a;
+    });
+    //create a new array of lineRings ordered by their area
+    var orderedByArea = [];
+    for (var i = 0; i < areas.length; i++) {
+        for (var lr = 0; lr < lineRingsWithArea.length; lr++) {
+            if (lineRingsWithArea[lr].area == areas[i]) {
+                orderedByArea.push(lineRingsWithArea[lr].lineRing);
+                lineRingsWithArea.splice(lr, 1);
+                break;
+            }
+        }
+    }
+    return orderedByArea;
+}
+
+function getLatitude(point) {
+    return point.geometry.coordinates[1];
+}
+
+function getLongitude(point) {
+    return point.geometry.coordinates[0];
+}
