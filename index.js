@@ -5,9 +5,11 @@ var MarchingSquaresJS = require('./marchingsquares-isobands');
 //from https://github.com/RaumZeit/MarchingSquares.js, added module.export
 
 var turfFeaturecollection = require('turf-featurecollection');
-var turfPolygon = require('turf-polygon');
-//var turfMultiPolygon = require('turf-multiPolygon');
+var turfHelpers = require('turf-helpers');
+var turfPolygon = turfHelpers.polygon;
+var turfMultiPolygon = turfHelpers.multiPolygon;
 var turfExplode = require('turf-explode');
+var turfInside = require('turf-inside');
 var turfArea = require('turf-area');
 
 
@@ -157,13 +159,17 @@ module.exports = function (pointGrid, z, breaks) {
 
     // creates GEOJson MultiPolygons from the contours
     var multipolygons = contours.map(function (contour) {
-        return multiPolygon(contour.contourSet, {[z]: contour[z]});
+        return turfMultiPolygon(contour.contourSet, {[z]: contour[z]});
     });
     
     //return a GEOJson FeatureCollection of MultiPolygons
     return turfFeaturecollection(multipolygons);
 
 };
+
+
+
+
 
 
 //returns an array of coordinates (of LinearRings) in descending order by area
@@ -211,11 +217,11 @@ function groupNestedRings(orderedLinearRings) {
                 var group = [];
                 group.push(lrList[i].lrCoordinates);
                 lrList[i].grouped = true;
-                var outerMostPoly = turf.polygon([lrList[i].lrCoordinates]);
+                var outerMostPoly = turfPolygon([lrList[i].lrCoordinates]);
                 //group all the rings contained by the outermost ring
                 for (var j = i + 1; j < lrList.length; j++) {
                     if (!lrList[j].grouped) {
-                        var lrPoly = turf.polygon([lrList[j].lrCoordinates]);
+                        var lrPoly = turfPolygon([lrList[j].lrCoordinates]);
                         if (isInside(lrPoly, outerMostPoly)) {
                             group.push(lrList[j].lrCoordinates);
                             lrList[j].grouped = true;
@@ -234,7 +240,7 @@ function groupNestedRings(orderedLinearRings) {
 function isInside(testPolygon, targetPolygon) {
     var points = turfExplode(testPolygon);
     for (var i = 0; i < points.features.length; i++) {
-        if (!turf.inside(points.features[i], targetPolygon)) {
+        if (!turfInside(points.features[i], targetPolygon)) {
             return false;
         }
     }
@@ -256,19 +262,4 @@ function getLatitude(point) {
 
 function getLongitude(point) {
     return point.geometry.coordinates[0];
-}
-
-/** to be removed once fixed turf multiPoygon */
-function multiPolygon(coordinates, properties) {
-    if (!coordinates) {
-        throw new Error('No coordinates passed');
-    }
-    return {
-        type: 'Feature',
-        properties: properties || {},
-        geometry: {
-            type: 'MultiPolygon',
-            coordinates: coordinates
-        }
-    };
 }
