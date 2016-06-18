@@ -6,6 +6,8 @@ var MarchingSquaresJS = require('./marchingsquares-isobands');
 
 var turfFeaturecollection = require('turf-featurecollection');
 var turfPolygon = require('turf-polygon');
+//var turfMultiPolygon = require('turf-multiPolygon');
+var turfExplode = require('turf-explode');
 var turfArea = require('turf-area');
 
 
@@ -106,7 +108,14 @@ module.exports = function (pointGrid, z, breaks) {
     //get pointGrid dimensions
     var gridWidth = gridData[0].length;
     var gridHeigth = gridData.length;
-
+    //calculate the scaling factor between the unitary grid to the rectangle on the map
+    var scaleX = originalWidth / gridWidth;
+    var scaleY = originalHeigth / gridHeigth;
+    
+    var rescale = function (point) {
+        point[0] = point[0] * scaleX + x0; //rescaled x
+        point[1] = point[1] * scaleY + y0; //rescaled y
+    };
 
 
     /*####################################
@@ -117,74 +126,128 @@ module.exports = function (pointGrid, z, breaks) {
      rescaled, with turfjs, to the original area and proportions on the google map
      ####################################*/
     // based on the provided breaks
-    var isoBands = [];
+    var contours = [];
     for (var i = 1; i < breaks.length; i++) {
         var lowerBand = +breaks[i - 1]; //make sure the breaks value is a number
         var upperBand = +breaks[i];
-        var band = MarchingSquaresJS.IsoBands(gridData, lowerBand, upperBand - lowerBand);
-        isoBands.push({
-            "lineRings": band,
+        var isobands = MarchingSquaresJS.IsoBands(gridData, lowerBand, upperBand - lowerBand);
+        // as per GeoJson rules for creating a polygon, make sure the first element in the array of linearRings
+        // represents the exterior ring (i.e. biggest area), and any subsequent elements represent interior rings
+        // (i.e. smaller area)
+        var nestedRings = orderByArea(isobands);
+        var contourSet = groupNestedRings(nestedRings);
+        contours.push({
+            "contourSet": contourSet,
             [z]: +breaks[i] //make sure it's a number
         });
     }
-    //calculate the scaling factor between the unitary grid to the rectangle on the map
-    var scaleX = originalWidth / gridWidth;
-    var scaleY = originalHeigth / gridHeigth;
 
     
     /*####################################
      transform isobands of 2D grid to polygons for the map
      ####################################*/
     //rescale and shift each point/line of the isobands
-    isoBands.forEach(function (bandObj) {
-        bandObj.lineRings.forEach(function (line) {
-            line.forEach(function (point) {
-                point[0] = point[0] * scaleX + x0; //rescaled x
-                point[1] = point[1] * scaleY + y0; //rescaled y
+    contours.forEach(function (contour) {
+        contour.contourSet.forEach(function (lineRingSet) {
+            lineRingSet.forEach(function (lineRing) {
+                lineRing.forEach(rescale);
             });
         });
     });
 
-    // creates GEOJson polygons from the lineRings
-    var polygons = isoBands.map(function (isoBand) {
-        // as per GeoJson rules for creating a polygon, make sure the first element in the array of lineRings
-        // represents the exterior ring (i.e. biggest area), and any subsequent elements represent interior rings
-        // (i.e. smaller area)
-        isoBand.lineRings = orderByArea(isoBand.lineRings);
-        return turfPolygon(isoBand.lineRings, {[z]: isoBand[z]});
+    // creates GEOJson MultiPolygons from the contours
+    var multipolygons = contours.map(function (contour) {
+        return multiPolygon(contour.contourSet, {[z]: contour[z]});
     });
-
-    //return a GEOJson featurecollection of polygons
-    return turfFeaturecollection(polygons);
+    
+    //return a GEOJson FeatureCollection of MultiPolygons
+    return turfFeaturecollection(multipolygons);
 
 };
 
-function orderByArea(lineRings) {
-    var lineRingsWithArea = [];
+
+//returns an array of coordinates (of LinearRings) in descending order by area
+function orderByArea(linearRings) {
+    var linearRingsWithArea = [];
     var areas = [];
-    lineRings.forEach(function (points) {
+    linearRings.forEach(function (points) {
         var poly = turfPolygon([points]);
         var area = turfArea(poly);
         //create an array of areas value
         areas.push(area);
         //associate each lineRing with its area
-        lineRingsWithArea.push({lineRing: points, area: area});
+        linearRingsWithArea.push({lineRing: points, area: area});
     });
     areas.sort(function (a, b) { //bigger --> smaller
         return b - a;
     });
-    //create a new array of lineRings ordered by their area
+    //create a new array of linearRings ordered by their area
     var orderedByArea = [];
     for (var i = 0; i < areas.length; i++) {
-        for (var lr = 0; lr < lineRingsWithArea.length; lr++) {
-            if (lineRingsWithArea[lr].area == areas[i]) {
-                orderedByArea.push(lineRingsWithArea[lr].lineRing);
-                lineRingsWithArea.splice(lr, 1);
+        for (var lr = 0; lr < linearRingsWithArea.length; lr++) {
+            if (linearRingsWithArea[lr].area == areas[i]) {
+                orderedByArea.push(linearRingsWithArea[lr].lineRing);
+                linearRingsWithArea.splice(lr, 1);
                 break;
             }
         }
     }
     return orderedByArea;
+}
+
+//returns an array of arrays of coordinates, each representing a set of (coordinates of) nested LinearRings,
+// i.e. the first ring contains all the others
+//it expects an array of coordinates (of LinearRings) in descending order by area
+function groupNestedRings(orderedLinearRings) {
+    //create a list of the (coordinates of) LinearRings
+    var lrList = orderedLinearRings.map(function (lr) {
+        return {lrCoordinates: lr, grouped: false};
+    });
+    var groupedLinearRings = [];
+    while (!allGrouped(lrList)) {
+        for (var i = 0; i < lrList.length; i++) {
+            if (!lrList[i].grouped) {
+                //create new group starting with the larger not already grouped ring
+                var group = [];
+                group.push(lrList[i].lrCoordinates);
+                lrList[i].grouped = true;
+                var outerMostPoly = turf.polygon([lrList[i].lrCoordinates]);
+                //group all the rings contained by the outermost ring
+                for (var j = i + 1; j < lrList.length; j++) {
+                    if (!lrList[j].grouped) {
+                        var lrPoly = turf.polygon([lrList[j].lrCoordinates]);
+                        if (isInside(lrPoly, outerMostPoly)) {
+                            group.push(lrList[j].lrCoordinates);
+                            lrList[j].grouped = true;
+                        }
+                    }
+                }
+                //insert the new group
+                groupedLinearRings.push(group);
+            }
+        }
+    }
+    return groupedLinearRings;
+}
+
+//returns if test Polygon is inside target Polygon
+function isInside(testPolygon, targetPolygon) {
+    var points = turfExplode(testPolygon);
+    for (var i = 0; i < points.features.length; i++) {
+        if (!turf.inside(points.features[i], targetPolygon)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function allGrouped(list) {
+    for (var i = 0; i < list.length; i++) {
+        if (list[i].grouped === false) {
+            return false;
+        }
+    }
+    return true;
 }
 
 function getLatitude(point) {
@@ -193,4 +256,19 @@ function getLatitude(point) {
 
 function getLongitude(point) {
     return point.geometry.coordinates[0];
+}
+
+/** to be removed once fixed turf multiPoygon */
+function multiPolygon(coordinates, properties) {
+    if (!coordinates) {
+        throw new Error('No coordinates passed');
+    }
+    return {
+        type: 'Feature',
+        properties: properties || {},
+        geometry: {
+            type: 'MultiPolygon',
+            coordinates: coordinates
+        }
+    };
 }

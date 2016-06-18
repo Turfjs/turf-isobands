@@ -39,7 +39,7 @@ var isolined = turf.isobands(pointGrid, 'z', breaks);
 ```
 
 
-**Returns** `FeatureCollection`, isolines
+**Returns** `FeatureCollection`, isolines (`MultiPolygons`)
 
 ## Installation
 
