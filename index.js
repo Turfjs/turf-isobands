@@ -1,176 +1,265 @@
-//https://github.com/jasondavies/conrec.js
-//http://stackoverflow.com/questions/263305/drawing-a-topographical-map
-var tin = require('turf-tin');
-var inside = require('turf-inside');
-var grid = require('turf-grid');
-var extent = require('turf-extent');
-var planepoint = require('turf-planepoint');
-var featurecollection = require('turf-featurecollection');
-var polygon = require('turf-polygon');
-var point = require('turf-point');
-var square = require('turf-square');
-var size = require('turf-size');
-var Conrec = require('./conrec.js');
+//http://emptypipes.org/2015/07/22/contour-comparison/
 
-/**
- * Takes a {@link FeatureCollection} of {@link Point} features with z-values and an array of
+
+var MarchingSquaresJS = require('./marchingsquares-isobands');
+//from https://github.com/RaumZeit/MarchingSquares.js, added module.export
+
+var turfFeaturecollection = require('turf-featurecollection');
+var turfHelpers = require('turf-helpers');
+var turfPolygon = turfHelpers.polygon;
+var turfMultiPolygon = turfHelpers.multiPolygon;
+var turfExplode = require('turf-explode');
+var turfInside = require('turf-inside');
+var turfArea = require('turf-area');
+
+
+/*******************************************************************
+ * Takes a grid ({@link FeatureCollection}) of {@link Point} features with z-values and an array of
  * value breaks and generates filled contour isobands.
  *
  * @module turf/isobands
  * @category interpolation
- * @param {FeatureCollection} points a FeeatureCollection of {@link Point} features
+ * @param {FeatureCollection} grid of points, a FeatureCollection of {@link Point} features
  * @param {string} z the property name in `points` from which z-values will be pulled
- * @param {number} resolution resolution of the underlying grid
  * @param {Array<number>} breaks where to draw contours
  * @returns {FeatureCollection} a FeatureCollection of {@link Polygon} features representing isobands
  * @example
  * // create random points with random
  * // z-values in their properties
- * var points = turf.random('point', 100, {
- *   bbox: [0, 30, 20, 50]
- * });
- * for (var i = 0; i < points.features.length; i++) {
- *   points.features[i].properties.z = Math.random() * 10;
+ * var extent = [-70.823364, -33.553984, -69.823364, -32.553984];
+ * var cellWidth = 5;
+ * var units = 'miles';
+ * var pointGrid = turf.pointGrid(extent, cellWidth, units);
+ * for (var i = 0; i < pointGrid.features.length; i++) {
+ *     pointGrid.features[i].properties.elevation = Math.random() * 10;
  * }
- * var breaks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
- * var isolined = turf.isobands(points, 'z', 15, breaks);
+ * var breaks = [0, 5, 8.5];
+ * var isolined = turf.isobands(pointGrid, 'z', breaks);
  * //=isolined
- */
-module.exports = function(points, z, resolution, breaks) {
-  var addEdgesResult = addEdges(points, z, resolution);
+ ******************************************************************/
+module.exports = function (pointGrid, z, breaks) {
 
-  var tinResult = tin(points, z);
-  var extentBBox = extent(points);
-  var squareBBox = square(extentBBox);
-  var gridResult = grid(squareBBox, resolution);
-  var data = [];
+    var points = pointGrid.features;
 
-  gridResult.features.forEach(function(pt) {
-    tinResult.features.forEach(function(triangle) {
-      if (inside(pt, triangle)) {
-        pt.properties = {};
-        pt.properties[z] = planepoint(pt, triangle);
-      }
+    /*####################################
+     divide points in pointGrid by latitude, creating a 2-dimensional data grid
+     ####################################*/
+    var pointsByLatitude = {};
+    for (var j = 0; j < points.length; j++) {
+        if (!pointsByLatitude[getLatitude(points[j])]) {
+            pointsByLatitude[getLatitude(points[j])] = [];
+        }
+        //group obj by Lat value
+        pointsByLatitude[getLatitude(points[j])].push(points[j]);
+    }
+    //create an array of arrays of points, each array representing a row (i.e. Latitude) of the 2D grid
+    pointsByLatitude = Object.keys(pointsByLatitude).map(function (key) {
+        return pointsByLatitude[key]
     });
-    if(!pt.properties) {
-      pt.properties = {};
-      pt.properties[z] = -100;
-    }
-  });
 
-  var depth = Math.sqrt(gridResult.features.length);
-  for (var x=0; x<depth; x++) {
-    var xGroup = gridResult.features.slice(x * depth, (x + 1) * depth);
-    var xFlat = [];
-    xGroup.forEach(function(verticalPoint) {
-      if(verticalPoint.properties) {
-        xFlat.push(verticalPoint.properties[z]);
-      } else {
-        xFlat.push(0);
-      }
+    /*
+     * pointsByLatitude is a matrix of points on the map; NOTE the position of the ORIGIN for MarchingSquaresJS
+     *
+     *  pointsByLatitude = [
+     *     [ {point}, {point}, {point},  ... {point} ],
+     *     [ {point}, {point}, {point},  ... {point} ],
+     *     ...
+     *     [ {ORIGIN}, {point}, {point},  ... {point} ]
+     *  ]
+     *
+     **/
+
+    //creates a 2D grid with the z-value of all point on the map
+    var gridData = [];
+    pointsByLatitude.forEach(function (pointArr, index, pointsByLat) {
+        var row = [];
+        //pointArr.reverse();
+        pointArr.map(function (point, index, pointArr) {
+            row.push(point.properties[z]);
+        });
+        gridData.push(row);
     });
-    data.push(xFlat);
-  }
-  var interval = (squareBBox[2] - squareBBox[0]) / depth;
-  var xCoordinates = [];
-  var yCoordinates = [];
-  for (var x=0; x<depth; x++) {
-    xCoordinates.push(x * interval + squareBBox[0]);
-    yCoordinates.push(x * interval + squareBBox[1]);
-  }
 
-  //change zero breaks to .01 to deal with bug in conrec algorithm
-  breaks = breaks.map(function(num) {
-    if(num === 0) {
-      return 0.01;
-    } else {
-      return num;
+    /* example
+     *   gridData = [
+     *       [ 1, 13, 10,  9, 10, 13, 18],
+     *       [34,  8,  5,  4,  5,  8, 13],
+     *       [10,  5,  2,  1,  2,  5,  4],
+     *       [ 0,  4, 56, 19,  1,  4,  9],
+     *       [10,  5,  2,  1,  2,  5, 10],
+     *       [57,  8,  5,  4,  5, 25, 57],
+     *       [ 3, 13, 10,  9,  5, 13, 18],
+     *       [18, 13, 10,  9, 78, 13, 18]
+     *   ]
+     */
+
+
+    /*####################################
+     getting references of the original grid of points (on the map)
+     ####################################*/
+    var lastC = pointsByLatitude[0].length - 1; //last colum of the data grid
+    //get the distance (on the map) between the first and the last point on a row of the grid
+    var originalWidth = getLongitude(pointsByLatitude[0][lastC]) - getLongitude(pointsByLatitude[0][0]);
+    var lastR = pointsByLatitude.length - 1; //last row of the data grid
+    //get the distance (on the map) between the first and the last point on a column of the grid
+    var originalHeigth = getLatitude(pointsByLatitude[lastR][0]) - getLatitude(pointsByLatitude[0][0]);
+
+    //get origin, which is the first point of the last row on the rectangular data on the map
+    var x0 = getLongitude(pointsByLatitude[0][0]);
+    var y0 = getLatitude(pointsByLatitude[0][0]);
+    //get pointGrid dimensions
+    var gridWidth = gridData[0].length;
+    var gridHeigth = gridData.length;
+    //calculate the scaling factor between the unitary grid to the rectangle on the map
+    var scaleX = originalWidth / gridWidth;
+    var scaleY = originalHeigth / gridHeigth;
+    
+    var rescale = function (point) {
+        point[0] = point[0] * scaleX + x0; //rescaled x
+        point[1] = point[1] * scaleY + y0; //rescaled y
+    };
+
+
+    /*####################################
+     creates the contours lines (featuresCollection of polygon features) from the 2D data grid
+
+     MarchingSquaresJS process the grid data as a 3D representation of a function on a 2D plane, therefore it
+     assumes the points (x-y coordinates) are one 'unit' distance. The result of the IsoBands function needs to be
+     rescaled, with turfjs, to the original area and proportions on the google map
+     ####################################*/
+    // based on the provided breaks
+    var contours = [];
+    for (var i = 1; i < breaks.length; i++) {
+        var lowerBand = +breaks[i - 1]; //make sure the breaks value is a number
+        var upperBand = +breaks[i];
+        var isobands = MarchingSquaresJS.IsoBands(gridData, lowerBand, upperBand - lowerBand);
+        // as per GeoJson rules for creating a polygon, make sure the first element in the array of linearRings
+        // represents the exterior ring (i.e. biggest area), and any subsequent elements represent interior rings
+        // (i.e. smaller area)
+        var nestedRings = orderByArea(isobands);
+        var contourSet = groupNestedRings(nestedRings);
+        contours.push({
+            "contourSet": contourSet,
+            [z]: +breaks[i] //make sure it's a number
+        });
     }
-  });
-  //deduplicate breaks
-  breaks = unique(breaks);
 
-  var c = new Conrec();
-  c.contour(data, 0, resolution, 0, resolution, xCoordinates, yCoordinates, breaks.length, breaks);
-  var contourList = c.contourList();
+    
+    /*####################################
+     transform isobands of 2D grid to polygons for the map
+     ####################################*/
+    //rescale and shift each point/line of the isobands
+    contours.forEach(function (contour) {
+        contour.contourSet.forEach(function (lineRingSet) {
+            lineRingSet.forEach(function (lineRing) {
+                lineRing.forEach(rescale);
+            });
+        });
+    });
 
-  var fc = featurecollection([]);
-  contourList.forEach(function(c) {
-    if(c.length > 2) {
-      var polyCoordinates = [];
-      c.forEach(function(coord) {
-        polyCoordinates.push([coord.x, coord.y]);
-      });
-      polyCoordinates.push([c[0].x, c[0].y]);
-      var poly = polygon([polyCoordinates]);
-      poly.properties = {};
-      poly.properties[z] = c.level;
-      fc.features.push(poly);
-    }
-  });
+    // creates GEOJson MultiPolygons from the contours
+    var multipolygons = contours.map(function (contour) {
+        return turfMultiPolygon(contour.contourSet, {[z]: contour[z]});
+    });
+    
+    //return a GEOJson FeatureCollection of MultiPolygons
+    return turfFeaturecollection(multipolygons);
 
-  return fc;
 };
 
-function addEdges(points, z, resolution) {
-  var extentBBox = extent(points),
-    sizeResult;
 
-  var squareBBox = square(extentBBox);
-  var sizeBBox = size(squareBBox, 0.35);
 
-  var edgeDistance = sizeBBox[2] - sizeBBox[0];
-  var extendDistance = edgeDistance / resolution;
 
-  var xmin = sizeBBox[0];
-  var ymin = sizeBBox[1];
-  var xmax = sizeBBox[2];
-  var ymax = sizeBBox[3];
 
-  //left
-  var left = [[xmin, ymin],[xmin, ymax]];
-  for(var i = 0; i<=resolution; i++) {
-    var pt = point([xmin, ymin + (extendDistance * i)]);
-    pt.properties = {};
-    pt.properties[z] = -100;
-    points.features.push(pt);
-  }
 
-  var i, pt;
-
-  //bottom
-  var bottom = [[xmin, ymin],[xmax, ymin]];
-  for(i = 0; i<=resolution; i++) {
-    pt = point([xmin + (extendDistance * i), ymin]);
-    pt.properties = {};
-    pt.properties[z] = -100;
-    points.features.push(pt);
-  }
-
-  //right
-  var right = [[xmax, ymin],[xmax, ymax]];
-  for(i = 0; i<=resolution; i++) {
-    pt = point([xmax, ymin + (extendDistance * i)]);
-    pt.properties = {};
-    pt.properties[z] = -100;
-    points.features.push(pt);
-  }
-
-  //top
-  var top = [[xmin, ymax],[xmax, ymax]];
-  for(i = 0; i<=resolution; i++) {
-    pt = point([xmin + (extendDistance * i), ymax]);
-    pt.properties = {};
-    pt.properties[z] = -100;
-    points.features.push(pt);
-  }
-
-  return points;
+//returns an array of coordinates (of LinearRings) in descending order by area
+function orderByArea(linearRings) {
+    var linearRingsWithArea = [];
+    var areas = [];
+    linearRings.forEach(function (points) {
+        var poly = turfPolygon([points]);
+        var area = turfArea(poly);
+        //create an array of areas value
+        areas.push(area);
+        //associate each lineRing with its area
+        linearRingsWithArea.push({lineRing: points, area: area});
+    });
+    areas.sort(function (a, b) { //bigger --> smaller
+        return b - a;
+    });
+    //create a new array of linearRings ordered by their area
+    var orderedByArea = [];
+    for (var i = 0; i < areas.length; i++) {
+        for (var lr = 0; lr < linearRingsWithArea.length; lr++) {
+            if (linearRingsWithArea[lr].area == areas[i]) {
+                orderedByArea.push(linearRingsWithArea[lr].lineRing);
+                linearRingsWithArea.splice(lr, 1);
+                break;
+            }
+        }
+    }
+    return orderedByArea;
 }
 
-function unique(a) {
-  return a.reduce(function(p, c) {
-      if (p.indexOf(c) < 0) p.push(c);
-      return p;
-  }, []);
+//returns an array of arrays of coordinates, each representing a set of (coordinates of) nested LinearRings,
+// i.e. the first ring contains all the others
+//it expects an array of coordinates (of LinearRings) in descending order by area
+function groupNestedRings(orderedLinearRings) {
+    //create a list of the (coordinates of) LinearRings
+    var lrList = orderedLinearRings.map(function (lr) {
+        return {lrCoordinates: lr, grouped: false};
+    });
+    var groupedLinearRings = [];
+    while (!allGrouped(lrList)) {
+        for (var i = 0; i < lrList.length; i++) {
+            if (!lrList[i].grouped) {
+                //create new group starting with the larger not already grouped ring
+                var group = [];
+                group.push(lrList[i].lrCoordinates);
+                lrList[i].grouped = true;
+                var outerMostPoly = turfPolygon([lrList[i].lrCoordinates]);
+                //group all the rings contained by the outermost ring
+                for (var j = i + 1; j < lrList.length; j++) {
+                    if (!lrList[j].grouped) {
+                        var lrPoly = turfPolygon([lrList[j].lrCoordinates]);
+                        if (isInside(lrPoly, outerMostPoly)) {
+                            group.push(lrList[j].lrCoordinates);
+                            lrList[j].grouped = true;
+                        }
+                    }
+                }
+                //insert the new group
+                groupedLinearRings.push(group);
+            }
+        }
+    }
+    return groupedLinearRings;
+}
+
+//returns if test Polygon is inside target Polygon
+function isInside(testPolygon, targetPolygon) {
+    var points = turfExplode(testPolygon);
+    for (var i = 0; i < points.features.length; i++) {
+        if (!turfInside(points.features[i], targetPolygon)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function allGrouped(list) {
+    for (var i = 0; i < list.length; i++) {
+        if (list[i].grouped === false) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function getLatitude(point) {
+    return point.geometry.coordinates[1];
+}
+
+function getLongitude(point) {
+    return point.geometry.coordinates[0];
 }

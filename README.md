@@ -5,9 +5,9 @@
 turf isobands module
 
 
-### `turf.isobands(points, z, resolution, breaks)`
+### `turf.isobands(points, z, breaks)`
 
-Takes a FeatureCollection of points with z values and an array of
+Takes a `pointGrid` FeatureCollection of points with z values and an array of
 value breaks and generates filled contour isobands. These are commonly
 used to create elevation maps, but can be used for general data
 interpolation as well.
@@ -17,30 +17,29 @@ interpolation as well.
 
 | parameter    | type              | description                                          |
 | ------------ | ----------------- | ---------------------------------------------------- |
-| `points`     | FeatureCollection |                                                      |
+| `points`     | FeatureCollection | - grid of points                                     |
 | `z`          | string            | - a property name from which z values will be pulled |
-| `resolution` | number            | - resolution of the underlying grid                  |
 | `breaks`     | Array.<number>    | - where to draw contours                             |
 
 
 ### Example
 
 ```js
-// create random points with random
-// z-values in their properties
-var points = turf.random('point', 100, {
-  bbox: [0, 30, 20, 50]
-});
-for (var i = 0; i < points.features.length; i++) {
-  points.features[i].properties.z = Math.random() * 10;
+// create a grid of points with random z-values in their properties
+var bbox = [-70.823, -33.553, -69.823, -32.553];
+var cellWidth = 5;
+var pointGrid = turf.pointGrid(bbox, cellWidth);
+for (var i = 0; i < pointGrid.features.length; i++) {
+    pointGrid.features[i].properties.elevation = Math.random() * 10;
 }
-var breaks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-var isolined = turf.isobands(points, 'z', 15, breaks);
+var breaks = [0, 2.8, 5, 8.5];
+var isolined = turf.isobands(pointGrid, 'z', breaks);
 //=isolined
+
 ```
 
 
-**Returns** `FeatureCollection`, isolines
+**Returns** `FeatureCollection`, isolines (`MultiPolygons`)
 
 ## Installation
 
